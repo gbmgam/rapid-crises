@@ -1,0 +1,187 @@
+{
+  "entities": {
+    "Emergency": {
+      "title": "Emergency",
+      "description": "A reported emergency incident.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["medical", "fire", "harassment", "panic", "other", "distress"] },
+        "status": { "type": "string", "enum": ["reported", "dispatched", "on_site", "resolved", "false_alarm"] },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "venueId": { "type": "string" },
+            "floor": { "type": "string" }
+          }
+        },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "description": { "type": "string" },
+        "mobility": { "type": "string", "enum": ["mobile", "immobile", "constrained", "static"] },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "aiClassification": { "type": "string" },
+        "isSilent": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "staffId": { "type": "string" }
+      },
+      "required": ["type", "status", "userId", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account and profile data.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "anon_id": { "type": "string" },
+        "role": { "type": "string", "enum": ["guest", "staff", "admin", "responder"] },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "isAnonymous": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["online", "offline", "emergency"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "anon_id", "createdAt"]
+    },
+    "EmergencyContact": {
+      "title": "Emergency Contact",
+      "description": "An authorized contact for emergency notifications.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "notifyOnAlert": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_id", "name"]
+    },
+    "ResponderAccount": {
+      "title": "Responder Account",
+      "description": "Official credentials for responders.",
+      "type": "object",
+      "properties": {
+        "responder_id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "password_hash": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["responder_id", "email"]
+    },
+    "AdminAccount": {
+      "title": "Admin Account",
+      "description": "Official credentials for administrators.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "password_hash": { "type": "string" },
+        "mfa_secret": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email"]
+    },
+    "Venue": {
+      "title": "Venue",
+      "description": "Venue layout and metadata for the digital twin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "mapUrl": { "type": "string" },
+        "nodes": { "type": "array" }
+      },
+      "required": ["id", "name"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "Tamper-proof event logs.",
+      "type": "object",
+      "properties": {
+        "emergencyId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "action": { "type": "string" },
+        "payload": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "hash": { "type": "string" }
+      },
+      "required": ["emergencyId", "action", "timestamp"]
+    },
+    "EmergencyMessage": {
+      "title": "Emergency Message",
+      "description": "A single communication event within an active crisis.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["guest", "staff", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["text", "system", "image"] }
+      },
+      "required": ["text", "senderId", "senderRole", "createdAt"]
+    },
+    "ResponderPresence": {
+      "title": "Responder Presence",
+      "description": "Status of a staff member relative to an incident.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["en-route", "on-site", "monitoring"] },
+        "lastLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "status", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/emergencies/{emergencyId}": {
+      "schema": "Emergency",
+      "description": "Collection of all emergency incidents."
+    },
+    "/emergencies/{emergencyId}/messages/{messageId}": {
+      "schema": "EmergencyMessage",
+      "description": "Real-time communication logs for an incident."
+    },
+    "/emergencies/{emergencyId}/responders/{userId}": {
+      "schema": "ResponderPresence",
+      "description": "Tracking of staff members responding to this incident."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and metadata."
+    },
+    "/venues/{venueId}": {
+      "schema": "Venue",
+      "description": "Venue configurations for mapping."
+    },
+    "/user_emergency_contacts/{contactId}": {
+      "schema": "EmergencyContact",
+      "description": "Global emergency contact registry linked by user_id."
+    },
+    "/responders/{responderId}": {
+      "schema": "ResponderAccount",
+      "description": "Responder credentials registry."
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminAccount",
+      "description": "Admin credentials registry."
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Audit logs for accountability."
+    }
+  }
+}

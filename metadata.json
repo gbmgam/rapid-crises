@@ -1,0 +1,6 @@
+{
+  "name": "QuantumLink: Tactical Safety Mesh",
+  "description": "Next-gen emergency response system with AI-driven crisis detection, silent SOS, and real-time incident management.",
+  "requestFramePermissions": ["geolocation", "microphone", "camera"],
+  "majorCapabilities": ["AI-driven Crisis Detection", "Silent SOS Trigger", "Digital Twin Venue Mapping", "Real-time Incident Dashboard"]
+}

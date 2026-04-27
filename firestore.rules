@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // Bootstrapped Admin Bypass
+    function isAdminEmail() {
+      return isSignedIn() && 
+             request.auth.token.email == 'gbm3914@gmail.com';
+    }
+
+    function isAdmin() {
+      return isAdminEmail() || 
+             (isSignedIn() && 
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'guest') in ['admin', 'superadmin']);
+    }
+
+    function isStaff() {
+      return isAdmin() || 
+             (isSignedIn() && 
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'guest') in ['staff', 'responder']);
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'anon_id', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 256)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128)) &&
+             (!('role' in data) || (data.role == null || data.role in ['guest', 'user', 'staff', 'admin', 'superadmin', 'responder'])) &&
+             (!('isAnonymous' in data) || data.isAnonymous is bool) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidEmergencyContact(data) {
+      return data.keys().hasAll(['user_id', 'name', 'createdAt']) &&
+             data.user_id == request.auth.uid &&
+             data.name is string && data.name.size() <= 128 &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 256)) &&
+             (!('notifyOnAlert' in data) || data.notifyOnAlert is bool) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidEmergency(data) {
+      return data.keys().hasAll(['type', 'status', 'userId', 'createdAt', 'updatedAt']) &&
+             data.userId is string &&
+             data.type in ['medical', 'fire', 'harassment', 'panic', 'other', 'distress'] &&
+             data.status in ['reported', 'dispatched', 'on_site', 'resolved', 'false_alarm'] &&
+             (!('severity' in data) || data.severity in ['low', 'medium', 'high', 'critical']) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp &&
+             (!('userName' in data) || (data.userName is string && data.userName.size() <= 128)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1024)) &&
+             (!('isSilent' in data) || data.isSilent is bool) &&
+             (!('mobility' in data) || data.mobility in ['mobile', 'immobile', 'constrained', 'static']);
+    }
+
+    // --- Rules ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isStaff());
+      allow list: if isSignedIn() && (isAdminEmail() || request.auth.uid == userId);
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidUser(incoming()) && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (request.auth.uid == userId && 
+         incoming().updatedAt == request.time &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'status', 'lastActiveAt', 'updatedAt', 'role']))
+      );
+    }
+
+    match /emergencies/{emergencyId} {
+      allow get: if isSignedIn() && isValidId(emergencyId) && (resource.data.userId == request.auth.uid || isStaff());
+      allow list: if isSignedIn() && (isAdminEmail() || resource.data.userId == request.auth.uid);
+      
+      allow create: if isSignedIn() && isValidId(emergencyId) && 
+                    isValidEmergency(incoming()) && 
+                    incoming().userId == request.auth.uid && 
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time &&
+                    incoming().status == 'reported';
+      
+      allow update: if isValidId(emergencyId) && 
+                    isValidEmergency(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    (
+                      isAdmin() || 
+                      (isStaff() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'staffId', 'dispatchedAt', 'onSiteAt', 'resolvedAt', 'severity', 'aiClassification'])) ||
+                      (request.auth.uid == existing().userId && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'mobility', 'description', 'status']))
+                    );
+      
+      allow delete: if isAdmin() && isValidId(emergencyId);
+
+      // Sub-collection: Communication
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (get(/databases/$(database)/documents/emergencies/$(emergencyId)).data.userId == request.auth.uid || isStaff());
+        allow create: if isSignedIn() && 
+          (get(/databases/$(database)/documents/emergencies/$(emergencyId)).data.userId == request.auth.uid || isStaff()) &&
+          incoming().senderId == request.auth.uid &&
+          incoming().createdAt == request.time;
+      }
+
+      // Sub-collection: Responders Presence
+      match /responders/{userId} {
+        allow read: if isSignedIn() && (get(/databases/$(database)/documents/emergencies/$(emergencyId)).data.userId == request.auth.uid || isStaff());
+        allow write: if isSignedIn() && userId == request.auth.uid && isStaff();
+      }
+    }
+
+    match /venues/{venueId} {
+      allow read: if isSignedIn() && isValidId(venueId);
+      allow write: if isAdmin() && isValidId(venueId);
+    }
+
+    match /logs/{logId} {
+      allow read: if isStaff() && isValidId(logId);
+      allow create: if isSignedIn() && isValidId(logId);
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+    }
+
+    match /user_emergency_contacts/{contactId} {
+      allow get, delete: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidEmergencyContact(incoming()) && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && resource.data.user_id == request.auth.uid && isValidEmergencyContact(incoming());
+    }
+
+    match /responders/{responderId} {
+      allow read: if isSignedIn(); // To allow login verification queries
+      allow write: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read, write: if isAdminEmail();
+    }
+  }
+}
