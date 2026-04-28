@@ -1,25 +1,24 @@
-FROM node:22-alpine
-
-# Install build dependencies for potential native modules
-RUN apk add --no-cache python3 make g++
+FROM node:22-slim
 
 WORKDIR /app
 
-# Install dependencies (including devDeps for build)
+# Install dependencies (including devDependencies for building)
 COPY package*.json ./
 RUN npm install
 
-# Copy source
+# Copy source code
 COPY . .
 
-# Set environment to production
+# Set production environment
 ENV NODE_ENV=production
 
-# Build the client-side app
+# Build the frontend assets
 RUN npm run build
 
-# Default Cloud Run port is 8080
-EXPOSE 8080
+# Cloud Run uses the PORT environment variable (usually 8080)
+# AI Studio environment expects 3000.
+# The server.ts handles this via process.env.PORT || 3000
+EXPOSE 3000
 
-# Start using tsx
-CMD ["npm", "start"]
+# Start the server
+CMD ["npx", "tsx", "server.ts"]
