@@ -1,22 +1,25 @@
-FROM node:22-slim
+FROM node:22-alpine
+
+# Install build dependencies for potential native modules
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (including devDeps for build)
 COPY package*.json ./
-# Using npm install instead of ci to handle lockfile updates during build if needed
 RUN npm install
 
 # Copy source
 COPY . .
 
+# Set environment to production
 ENV NODE_ENV=production
 
-# Build client-side app
+# Build the client-side app
 RUN npm run build
 
-# Port 3000 is required by the environment facts
-EXPOSE 3000
+# Default Cloud Run port is 8080
+EXPOSE 8080
 
-# Start the server using tsx to handle TypeScript files directly
-CMD ["npx", "tsx", "server.ts"]
+# Start using tsx
+CMD ["npm", "start"]
