@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.git
+.gitignore
+Dockerfile
+.dockerignore
+firebase-blueprint.json
+firestore.rules
+security_spec.md
+npm-debug.log
+error.log
