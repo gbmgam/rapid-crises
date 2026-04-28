@@ -17,7 +17,8 @@ async function startServer() {
     }
   });
 
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+  console.log(`[BOOT] Attempting to start on port ${PORT}...`);
 
   app.use(express.json());
 
@@ -162,8 +163,8 @@ async function startServer() {
     });
   }
 
-  httpServer.listen(Number(PORT), "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`[BOOT] Server successfully listening on http://0.0.0.0:${PORT}`);
   });
 }
 
