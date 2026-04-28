@@ -4,8 +4,8 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-# We use npm ci for a more reliable build in container environments
-RUN npm ci
+# Using npm install instead of ci to handle lockfile updates during build if needed
+RUN npm install
 
 # Copy source
 COPY . .
@@ -18,8 +18,5 @@ RUN npm run build
 # Port 3000 is required by the environment facts
 EXPOSE 3000
 
-# Start the server
-# Note: Node 22+ supports TypeScript type-stripping via a flag
-# If your environment doesn't support it natively, you might need 'npx tsx server.ts'
-# but we'll follow the standard node server.ts and let the runtime handle it as per guidelines.
-CMD ["node", "server.ts"]
+# Start the server using tsx to handle TypeScript files directly
+CMD ["npx", "tsx", "server.ts"]
